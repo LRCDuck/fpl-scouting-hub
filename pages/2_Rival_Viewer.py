@@ -2,10 +2,6 @@ import streamlit as st
 import requests
 import pandas as pd
 
-# =====================================================
-# SETTINGS
-# =====================================================
-
 DEFAULT_LEAGUE_ID = "1116047"
 
 st.set_page_config(
@@ -20,9 +16,9 @@ league_id = st.sidebar.text_input(
     value=DEFAULT_LEAGUE_ID
 )
 
-# =====================================================
+# ==========================================================
 # CSS
-# =====================================================
+# ==========================================================
 
 st.markdown("""
 <style>
@@ -30,114 +26,204 @@ st.markdown("""
 .pitch{
     background: linear-gradient(
         180deg,
-        #00a64f 0%,
-        #00b050 100%
+        #0f9d58 0%,
+        #0ca54a 100%
     );
-    border-radius:20px;
-    padding:20px;
-    margin-top:20px;
+    border-radius:25px;
+    padding:30px;
+    border:4px solid white;
 }
 
 .player-card{
-    background:white;
-    color:black;
-    font-weight:bold;
+    border-radius:12px;
+    padding:12px;
     text-align:center;
+    font-weight:bold;
+    color:white;
+    min-height:100px;
+    margin-bottom:10px;
+    box-shadow:0px 4px 8px rgba(0,0,0,0.3);
+}
+
+.captain{
+    border:4px solid gold;
+}
+
+.vice{
+    border:4px solid #1e90ff;
+}
+
+.injured{
+    border:4px solid red;
+}
+
+.bench-card{
     border-radius:10px;
     padding:10px;
-    margin:4px;
-    box-shadow:0 2px 6px rgba(0,0,0,0.25);
-}
-
-.bench-player{
-    background:#ececec;
-    color:black;
-    border-radius:8px;
     text-align:center;
-    padding:8px;
-    margin:4px;
-}
-
-.row-space{
-    margin-bottom:25px;
+    font-weight:bold;
+    color:white;
+    min-height:80px;
 }
 
 </style>
 """, unsafe_allow_html=True)
 
-# =====================================================
-# API FUNCTIONS
-# =====================================================
+# ==========================================================
+# TEAM COLOURS
+# ==========================================================
+
+TEAM_COLOURS = {
+    1:"#EF0107",
+    2:"#95BFE5",
+    3:"#DA291C",
+    4:"#E30613",
+    5:"#0057B8",
+    6:"#034694",
+    7:"#1B458F",
+    8:"#003399",
+    9:"#000000",
+    10:"#C8102E",
+    11:"#6CABDD",
+    12:"#DA291C",
+    13:"#241F20",
+    14:"#DD0000",
+    15:"#132257",
+    16:"#7A263A",
+    17:"#FDB913",
+    18:"#0057B8",
+    19:"#6CABDD",
+    20:"#C8102E"
+}
+
+# ==========================================================
+# API
+# ==========================================================
 
 @st.cache_data(ttl=86400)
 def bootstrap():
-
     return requests.get(
         "https://fantasy.premierleague.com/api/bootstrap-static/"
     ).json()
 
+
 @st.cache_data(ttl=300)
 def league_data(league_id):
-
     return requests.get(
         f"https://fantasy.premierleague.com/api/leagues-classic/{league_id}/standings/"
     ).json()
 
-@st.cache_data(ttl=300)
-def manager_data(entry):
-
-    return requests.get(
-        f"https://fantasy.premierleague.com/api/entry/{entry}/"
-    ).json()
 
 @st.cache_data(ttl=300)
-def manager_history(entry):
-
+def manager_data(entry_id):
     return requests.get(
-        f"https://fantasy.premierleague.com/api/entry/{entry}/history/"
-    ).json()
-
-@st.cache_data(ttl=300)
-def manager_transfers(entry):
-
-    return requests.get(
-        f"https://fantasy.premierleague.com/api/entry/{entry}/transfers/"
-    ).json()
-
-@st.cache_data(ttl=300)
-def picks(entry, gw):
-
-    return requests.get(
-        f"https://fantasy.premierleague.com/api/entry/{entry}/event/{gw}/picks/"
+        f"https://fantasy.premierleague.com/api/entry/{entry_id}/"
     ).json()
 
 
-# =====================================================
-# LOAD DATA
-# =====================================================
+@st.cache_data(ttl=300)
+def manager_history(entry_id):
+    return requests.get(
+        f"https://fantasy.premierleague.com/api/entry/{entry_id}/history/"
+    ).json()
+
+
+@st.cache_data(ttl=300)
+def manager_transfers(entry_id):
+    return requests.get(
+        f"https://fantasy.premierleague.com/api/entry/{entry_id}/transfers/"
+    ).json()
+
+
+@st.cache_data(ttl=300)
+def team_picks(entry_id, gw):
+    return requests.get(
+        f"https://fantasy.premierleague.com/api/entry/{entry_id}/event/{gw}/picks/"
+    ).json()
+
+
+# ==========================================================
+# HELPERS
+# ==========================================================
+
+def render_card(player, pdata, display_mode):
+
+    css_class = "player-card"
+
+    if player["is_captain"]:
+        css_class += " captain"
+
+    elif player["is_vice_captain"]:
+        css_class += " vice"
+
+    elif pdata["status"] != "a":
+        css_class += " injured"
+
+    team_colour = TEAM_COLOURS.get(
+        pdata["team"],
+        "#444444"
+    )
+
+    badges = ""
+
+    if pdata["status"] != "a":
+        badges += "🚨 "
+
+    if player["is_captain"]:
+        badges += "👑 "
+
+    if player["is_vice_captain"]:
+        badges += "🛡 "
+
+    if display_mode == "Points":
+        value = f"{pdata['total_points']} pts"
+    else:
+        value = f"£{pdata['now_cost']/10:.1f}m"
+
+    return f"""
+    <div class="{css_class}"
+         style="background:{team_colour};">
+
+        <div>{badges}</div>
+
+        <div>
+            {pdata['web_name']}
+        </div>
+
+        <div style="margin-top:8px;font-size:14px;">
+            {value}
+        </div>
+
+    </div>
+    """
+
+
+# ==========================================================
+# LOAD
+# ==========================================================
 
 try:
 
-    boot = bootstrap()
+    data = bootstrap()
 
     players_lookup = {
         p["id"]: p
-        for p in boot["elements"]
+        for p in data["elements"]
     }
 
-    league = league_data(league_id)
+    standings = league_data(league_id)
 
-    names = {
-        m["player_name"]: m["entry"]
-        for m in league["standings"]["results"]
+    managers = {
+        x["player_name"]: x["entry"]
+        for x in standings["standings"]["results"]
     }
 
     manager_name = st.selectbox(
         "Select Manager",
-        sorted(names.keys())
+        sorted(managers.keys())
     )
 
-    entry_id = names[manager_name]
+    entry_id = managers[manager_name]
 
     manager = manager_data(entry_id)
 
@@ -147,95 +233,97 @@ try:
 
     current_gw = history["current"][-1]["event"]
 
-    current_picks = picks(
+    picks = team_picks(
         entry_id,
         current_gw
     )
 
-    # =================================================
+    display_mode = st.selectbox(
+        "Display on cards",
+        [
+            "Points",
+            "Price"
+        ]
+    )
+
+    # ======================================================
     # OVERVIEW
-    # =================================================
+    # ======================================================
 
     st.subheader("📊 Team Overview")
 
-    c1, c2, c3, c4 = st.columns(4)
+    c1,c2,c3,c4,c5 = st.columns(5)
 
-    with c1:
-        st.metric(
-            "Overall Rank",
-            f"{manager['summary_overall_rank']:,}"
-        )
+    c1.metric(
+        "Overall Rank",
+        f"{manager['summary_overall_rank']:,}"
+    )
 
-    with c2:
-        st.metric(
-            "Total Points",
-            manager["summary_overall_points"]
-        )
+    c2.metric(
+        "Total Points",
+        manager["summary_overall_points"]
+    )
 
-    with c3:
-        st.metric(
-            "Team Value",
-            f"£{manager['last_deadline_value']/10:.1f}m"
-        )
+    c3.metric(
+        "Team Value",
+        f"£{manager['last_deadline_value']/10:.1f}m"
+    )
 
-    with c4:
-        st.metric(
-            "Bank",
-            f"£{manager['last_deadline_bank']/10:.1f}m"
-        )
+    c4.metric(
+        "Bank",
+        f"£{manager['last_deadline_bank']/10:.1f}m"
+    )
 
-    # =================================================
-    # BUILD SQUAD
-    # =================================================
-
-    squad = []
-
-    for player in current_picks["picks"]:
-
-        pdata = players_lookup[player["element"]]
-
-        squad.append({
-            "web_name": pdata["web_name"],
-            "position": pdata["element_type"],
-            "multiplier": player["multiplier"],
-            "captain": player["is_captain"],
-            "vice": player["is_vice_captain"]
-        })
+    c5.metric(
+        "Transfers",
+        len(transfers)
+    )
 
     starters = [
-        p for p in squad
+        p for p in picks["picks"]
         if p["multiplier"] > 0
     ]
 
     bench = [
-        p for p in squad
+        p for p in picks["picks"]
         if p["multiplier"] == 0
     ]
 
-    gk = [x for x in starters if x["position"] == 1]
-    defs = [x for x in starters if x["position"] == 2]
-    mids = [x for x in starters if x["position"] == 3]
-    fwds = [x for x in starters if x["position"] == 4]
+    gk = [
+        p for p in starters
+        if players_lookup[p["element"]]["element_type"] == 1
+    ]
+
+    defs = [
+        p for p in starters
+        if players_lookup[p["element"]]["element_type"] == 2
+    ]
+
+    mids = [
+        p for p in starters
+        if players_lookup[p["element"]]["element_type"] == 3
+    ]
+
+    fwds = [
+        p for p in starters
+        if players_lookup[p["element"]]["element_type"] == 4
+    ]
 
     formation = f"{len(defs)}-{len(mids)}-{len(fwds)}"
 
     st.success(f"📋 Formation: {formation}")
 
-    # =================================================
-    # TABS
-    # =================================================
-
     tab1, tab2, tab3 = st.tabs(
         [
-            "⚽ Pitch View",
+            "⚽ Pitch",
             "🔄 Transfers",
             "🎲 Chips"
         ]
     )
 
-    # =================================================
-    # PITCH TAB
-    # =================================================
+    # ======================================================
+    # PITCH
+    # ======================================================
 
     with tab1:
 
@@ -244,91 +332,98 @@ try:
             unsafe_allow_html=True
         )
 
-        st.markdown(
-            "<h3 style='text-align:center;'>Goalkeeper</h3>",
-            unsafe_allow_html=True
-        )
+        st.markdown("### 🥅 Goalkeeper")
 
         cols = st.columns(max(1, len(gk)))
 
-        for i, p in enumerate(gk):
+        for i, player in enumerate(gk):
 
-            label = p["web_name"]
-
-            if p["captain"]:
-                label += " (C)"
-
-            if p["vice"]:
-                label += " (V)"
+            pdata = players_lookup[player["element"]]
 
             cols[i].markdown(
-                f"<div class='player-card'>{label}</div>",
+                render_card(
+                    player,
+                    pdata,
+                    display_mode
+                ),
                 unsafe_allow_html=True
             )
 
-        st.markdown(
-            "<h3 style='text-align:center;'>Defence</h3>",
-            unsafe_allow_html=True
-        )
+        st.markdown("### 🛡 Defence")
 
         cols = st.columns(len(defs))
 
-        for i, p in enumerate(defs):
+        for i, player in enumerate(defs):
+
+            pdata = players_lookup[player["element"]]
 
             cols[i].markdown(
-                f"<div class='player-card'>{p['web_name']}</div>",
+                render_card(
+                    player,
+                    pdata,
+                    display_mode
+                ),
                 unsafe_allow_html=True
             )
 
-        st.markdown(
-            "<h3 style='text-align:center;'>Midfield</h3>",
-            unsafe_allow_html=True
-        )
+        st.markdown("### 🎯 Midfield")
 
         cols = st.columns(len(mids))
 
-        for i, p in enumerate(mids):
+        for i, player in enumerate(mids):
+
+            pdata = players_lookup[player["element"]]
 
             cols[i].markdown(
-                f"<div class='player-card'>{p['web_name']}</div>",
+                render_card(
+                    player,
+                    pdata,
+                    display_mode
+                ),
                 unsafe_allow_html=True
             )
 
-        st.markdown(
-            "<h3 style='text-align:center;'>Attack</h3>",
-            unsafe_allow_html=True
-        )
+        st.markdown("### ⚽ Attack")
 
         cols = st.columns(len(fwds))
 
-        for i, p in enumerate(fwds):
+        for i, player in enumerate(fwds):
+
+            pdata = players_lookup[player["element"]]
 
             cols[i].markdown(
-                f"<div class='player-card'>{p['web_name']}</div>",
+                render_card(
+                    player,
+                    pdata,
+                    display_mode
+                ),
                 unsafe_allow_html=True
             )
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("---")
 
         st.subheader("🪑 Bench")
 
-        bench_cols = st.columns(4)
+        cols = st.columns(4)
 
-        for i, p in enumerate(bench):
+        for i, player in enumerate(bench):
 
-            bench_cols[i].markdown(
-                f"<div class='bench-player'>{p['web_name']}</div>",
+            pdata = players_lookup[player["element"]]
+
+            cols[i].markdown(
+                render_card(
+                    player,
+                    pdata,
+                    display_mode
+                ),
                 unsafe_allow_html=True
             )
 
-        st.markdown(
-            "</div>",
-            unsafe_allow_html=True
-        )
-
-    # =================================================
-    # TRANSFERS TAB
-    # =================================================
+    # ======================================================
+    # TRANSFERS
+    # ======================================================
 
     with tab2:
 
@@ -340,49 +435,49 @@ try:
 
             for t in transfers[-20:]:
 
-                player_in = players_lookup.get(
-                    t["element_in"],
-                    {}
-                ).get("web_name", "Unknown")
-
-                player_out = players_lookup.get(
-                    t["element_out"],
-                    {}
-                ).get("web_name", "Unknown")
-
                 rows.append({
                     "GW": t["event"],
-                    "IN": player_in,
-                    "OUT": player_out,
+                    "IN": players_lookup.get(
+                        t["element_in"],
+                        {}
+                    ).get(
+                        "web_name",
+                        "Unknown"
+                    ),
+                    "OUT": players_lookup.get(
+                        t["element_out"],
+                        {}
+                    ).get(
+                        "web_name",
+                        "Unknown"
+                    ),
                     "Date": t["time"][:10]
                 })
 
-            transfer_df = pd.DataFrame(rows)
-
-            transfer_df = transfer_df.sort_values(
-                "GW",
-                ascending=False
-            )
-
             st.dataframe(
-                transfer_df,
-                use_container_width=True,
-                hide_index=True
+                pd.DataFrame(rows)
+                .sort_values("GW",
+                             ascending=False),
+                hide_index=True,
+                use_container_width=True
             )
 
         else:
 
-            st.info("No transfer history found.")
+            st.info(
+                "No transfers found."
+            )
 
-    # =================================================
-    # CHIPS TAB
-    # =================================================
+    # ======================================================
+    # CHIPS
+    # ======================================================
 
     with tab3:
 
-        st.subheader("🎲 Chips Used")
-
-        chips = manager.get("chips", [])
+        chips = manager.get(
+            "chips",
+            []
+        )
 
         if chips:
 
@@ -396,7 +491,9 @@ try:
                 })
 
             st.dataframe(
-                pd.DataFrame(chip_rows),
+                pd.DataFrame(
+                    chip_rows
+                ),
                 hide_index=True,
                 use_container_width=True
             )
@@ -404,12 +501,8 @@ try:
         else:
 
             st.info(
-                "No chips used yet."
+                "No chips used."
             )
-
-    # =================================================
-    # AI SCOUT REPORT
-    # =================================================
 
     st.markdown("---")
 
@@ -417,22 +510,22 @@ try:
 
     st.info(
         f"""
-🏆 {manager_name} currently has {manager['summary_overall_points']} points.
+🏆 {manager_name}
 
-📈 Overall rank: {manager['summary_overall_rank']:,}
+📈 Overall Rank: {manager['summary_overall_rank']:,}
 
-💰 Squad value: £{manager['last_deadline_value']/10:.1f}m
+💰 Team Value: £{manager['last_deadline_value']/10:.1f}m
 
-🎲 Chips used: {len(manager.get('chips', []))}
+🎲 Chips Used: {len(manager.get('chips', []))}
 
-🔄 Transfers made: {len(transfers)}
+🔄 Transfers Made: {len(transfers)}
 
-⚔️ Use the formation view above to scout captain choices, team structure and potential differentials.
+📋 Current Formation: {formation}
 """
     )
 
 except Exception as e:
 
     st.error(
-        f"Failed to load rival data: {e}"
+        f"Error loading rival data: {e}"
     )
