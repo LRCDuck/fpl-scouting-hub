@@ -16,7 +16,7 @@ from google.genai import types
 
 DEFAULT_LEAGUE_ID = "1116047"
 DEFAULT_ENTRY_ID = "6074290"
-DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.6-flash"
 
 BASE_URL = "https://fantasy.premierleague.com/api"
 
