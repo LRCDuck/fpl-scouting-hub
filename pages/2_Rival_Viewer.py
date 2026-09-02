@@ -1,9 +1,9 @@
 import streamlit as st
-import pandas as pd
 import requests
+import pandas as pd
 
 # =====================================================
-# DEFAULT SETTINGS
+# SETTINGS
 # =====================================================
 
 DEFAULT_LEAGUE_ID = "1116047"
@@ -15,60 +15,102 @@ st.set_page_config(
 
 st.title("🔍 Rival Viewer")
 
-# =====================================================
-# SIDEBAR
-# =====================================================
-
 league_id = st.sidebar.text_input(
     "League ID",
     value=DEFAULT_LEAGUE_ID
 )
 
 # =====================================================
-# FUNCTIONS
+# CSS
+# =====================================================
+
+st.markdown("""
+<style>
+
+.pitch{
+    background: linear-gradient(
+        180deg,
+        #00a64f 0%,
+        #00b050 100%
+    );
+    border-radius:20px;
+    padding:20px;
+    margin-top:20px;
+}
+
+.player-card{
+    background:white;
+    color:black;
+    font-weight:bold;
+    text-align:center;
+    border-radius:10px;
+    padding:10px;
+    margin:4px;
+    box-shadow:0 2px 6px rgba(0,0,0,0.25);
+}
+
+.bench-player{
+    background:#ececec;
+    color:black;
+    border-radius:8px;
+    text-align:center;
+    padding:8px;
+    margin:4px;
+}
+
+.row-space{
+    margin-bottom:25px;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# =====================================================
+# API FUNCTIONS
 # =====================================================
 
 @st.cache_data(ttl=86400)
-def get_bootstrap():
+def bootstrap():
 
     return requests.get(
         "https://fantasy.premierleague.com/api/bootstrap-static/"
     ).json()
 
 @st.cache_data(ttl=300)
-def get_league(league_id):
+def league_data(league_id):
 
     return requests.get(
         f"https://fantasy.premierleague.com/api/leagues-classic/{league_id}/standings/"
     ).json()
 
 @st.cache_data(ttl=300)
-def get_manager(entry_id):
+def manager_data(entry):
 
     return requests.get(
-        f"https://fantasy.premierleague.com/api/entry/{entry_id}/"
+        f"https://fantasy.premierleague.com/api/entry/{entry}/"
     ).json()
 
 @st.cache_data(ttl=300)
-def get_history(entry_id):
+def manager_history(entry):
 
     return requests.get(
-        f"https://fantasy.premierleague.com/api/entry/{entry_id}/history/"
+        f"https://fantasy.premierleague.com/api/entry/{entry}/history/"
     ).json()
 
 @st.cache_data(ttl=300)
-def get_transfers(entry_id):
+def manager_transfers(entry):
 
     return requests.get(
-        f"https://fantasy.premierleague.com/api/entry/{entry_id}/transfers/"
+        f"https://fantasy.premierleague.com/api/entry/{entry}/transfers/"
     ).json()
 
 @st.cache_data(ttl=300)
-def get_current_picks(entry_id, gw):
+def picks(entry, gw):
 
     return requests.get(
-        f"https://fantasy.premierleague.com/api/entry/{entry_id}/event/{gw}/picks/"
+        f"https://fantasy.premierleague.com/api/entry/{entry}/event/{gw}/picks/"
     ).json()
+
 
 # =====================================================
 # LOAD DATA
@@ -76,38 +118,36 @@ def get_current_picks(entry_id, gw):
 
 try:
 
-    bootstrap = get_bootstrap()
+    boot = bootstrap()
 
-    players = {
+    players_lookup = {
         p["id"]: p
-        for p in bootstrap["elements"]
+        for p in boot["elements"]
     }
 
-    teams = get_league(league_id)
+    league = league_data(league_id)
 
-    managers = teams["standings"]["results"]
-
-    manager_lookup = {
-        x["player_name"]: x["entry"]
-        for x in managers
+    names = {
+        m["player_name"]: m["entry"]
+        for m in league["standings"]["results"]
     }
 
-    selected_manager = st.selectbox(
-        "Select Rival",
-        sorted(manager_lookup.keys())
+    manager_name = st.selectbox(
+        "Select Manager",
+        sorted(names.keys())
     )
 
-    entry_id = manager_lookup[selected_manager]
+    entry_id = names[manager_name]
 
-    manager = get_manager(entry_id)
+    manager = manager_data(entry_id)
 
-    history = get_history(entry_id)
+    history = manager_history(entry_id)
 
-    transfers = get_transfers(entry_id)
+    transfers = manager_transfers(entry_id)
 
     current_gw = history["current"][-1]["event"]
 
-    picks = get_current_picks(
+    current_picks = picks(
         entry_id,
         current_gw
     )
@@ -145,163 +185,254 @@ try:
         )
 
     # =================================================
-    # CHIPS
+    # BUILD SQUAD
     # =================================================
-
-    st.markdown("---")
-    st.subheader("🎲 Chips Used")
-
-    chips = manager.get("chips", [])
-
-    if chips:
-
-        chip_rows = []
-
-        for chip in chips:
-
-            chip_rows.append({
-                "Chip": chip["name"],
-                "Gameweek": chip["event"]
-            })
-
-        st.dataframe(
-            pd.DataFrame(chip_rows),
-            use_container_width=True,
-            hide_index=True
-        )
-
-    else:
-        st.info("No chips used.")
-
-    # =================================================
-    # CAPTAIN / VC
-    # =================================================
-
-    st.markdown("---")
-    st.subheader("🧢 Captaincy")
-
-    captain = None
-    vice = None
-
-    for player in picks["picks"]:
-
-        if player["is_captain"]:
-            captain = players[player["element"]]["web_name"]
-
-        if player["is_vice_captain"]:
-            vice = players[player["element"]]["web_name"]
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.success(f"Captain: {captain}")
-
-    with col2:
-        st.info(f"Vice Captain: {vice}")
-
-    # =================================================
-    # CURRENT SQUAD
-    # =================================================
-
-    st.markdown("---")
-    st.subheader("⚽ Current Squad")
 
     squad = []
 
-    for player in picks["picks"]:
+    for player in current_picks["picks"]:
 
-        p = players[player["element"]]
+        pdata = players_lookup[player["element"]]
 
         squad.append({
-            "Player": p["web_name"],
-            "Position": p["element_type"],
-            "Price": f"£{p['now_cost']/10:.1f}m",
-            "Captain": "✅" if player["is_captain"] else "",
-            "Vice": "✅" if player["is_vice_captain"] else ""
+            "web_name": pdata["web_name"],
+            "position": pdata["element_type"],
+            "multiplier": player["multiplier"],
+            "captain": player["is_captain"],
+            "vice": player["is_vice_captain"]
         })
 
-    squad_df = pd.DataFrame(squad)
+    starters = [
+        p for p in squad
+        if p["multiplier"] > 0
+    ]
 
-    st.dataframe(
-        squad_df,
-        use_container_width=True,
-        hide_index=True
+    bench = [
+        p for p in squad
+        if p["multiplier"] == 0
+    ]
+
+    gk = [x for x in starters if x["position"] == 1]
+    defs = [x for x in starters if x["position"] == 2]
+    mids = [x for x in starters if x["position"] == 3]
+    fwds = [x for x in starters if x["position"] == 4]
+
+    formation = f"{len(defs)}-{len(mids)}-{len(fwds)}"
+
+    st.success(f"📋 Formation: {formation}")
+
+    # =================================================
+    # TABS
+    # =================================================
+
+    tab1, tab2, tab3 = st.tabs(
+        [
+            "⚽ Pitch View",
+            "🔄 Transfers",
+            "🎲 Chips"
+        ]
     )
 
     # =================================================
-    # TRANSFERS
+    # PITCH TAB
+    # =================================================
+
+    with tab1:
+
+        st.markdown(
+            "<div class='pitch'>",
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            "<h3 style='text-align:center;'>Goalkeeper</h3>",
+            unsafe_allow_html=True
+        )
+
+        cols = st.columns(max(1, len(gk)))
+
+        for i, p in enumerate(gk):
+
+            label = p["web_name"]
+
+            if p["captain"]:
+                label += " (C)"
+
+            if p["vice"]:
+                label += " (V)"
+
+            cols[i].markdown(
+                f"<div class='player-card'>{label}</div>",
+                unsafe_allow_html=True
+            )
+
+        st.markdown(
+            "<h3 style='text-align:center;'>Defence</h3>",
+            unsafe_allow_html=True
+        )
+
+        cols = st.columns(len(defs))
+
+        for i, p in enumerate(defs):
+
+            cols[i].markdown(
+                f"<div class='player-card'>{p['web_name']}</div>",
+                unsafe_allow_html=True
+            )
+
+        st.markdown(
+            "<h3 style='text-align:center;'>Midfield</h3>",
+            unsafe_allow_html=True
+        )
+
+        cols = st.columns(len(mids))
+
+        for i, p in enumerate(mids):
+
+            cols[i].markdown(
+                f"<div class='player-card'>{p['web_name']}</div>",
+                unsafe_allow_html=True
+            )
+
+        st.markdown(
+            "<h3 style='text-align:center;'>Attack</h3>",
+            unsafe_allow_html=True
+        )
+
+        cols = st.columns(len(fwds))
+
+        for i, p in enumerate(fwds):
+
+            cols[i].markdown(
+                f"<div class='player-card'>{p['web_name']}</div>",
+                unsafe_allow_html=True
+            )
+
+        st.markdown("---")
+
+        st.subheader("🪑 Bench")
+
+        bench_cols = st.columns(4)
+
+        for i, p in enumerate(bench):
+
+            bench_cols[i].markdown(
+                f"<div class='bench-player'>{p['web_name']}</div>",
+                unsafe_allow_html=True
+            )
+
+        st.markdown(
+            "</div>",
+            unsafe_allow_html=True
+        )
+
+    # =================================================
+    # TRANSFERS TAB
+    # =================================================
+
+    with tab2:
+
+        st.subheader("🔄 Latest Transfers")
+
+        if transfers:
+
+            rows = []
+
+            for t in transfers[-20:]:
+
+                player_in = players_lookup.get(
+                    t["element_in"],
+                    {}
+                ).get("web_name", "Unknown")
+
+                player_out = players_lookup.get(
+                    t["element_out"],
+                    {}
+                ).get("web_name", "Unknown")
+
+                rows.append({
+                    "GW": t["event"],
+                    "IN": player_in,
+                    "OUT": player_out,
+                    "Date": t["time"][:10]
+                })
+
+            transfer_df = pd.DataFrame(rows)
+
+            transfer_df = transfer_df.sort_values(
+                "GW",
+                ascending=False
+            )
+
+            st.dataframe(
+                transfer_df,
+                use_container_width=True,
+                hide_index=True
+            )
+
+        else:
+
+            st.info("No transfer history found.")
+
+    # =================================================
+    # CHIPS TAB
+    # =================================================
+
+    with tab3:
+
+        st.subheader("🎲 Chips Used")
+
+        chips = manager.get("chips", [])
+
+        if chips:
+
+            chip_rows = []
+
+            for chip in chips:
+
+                chip_rows.append({
+                    "Chip": chip["name"],
+                    "GW": chip["event"]
+                })
+
+            st.dataframe(
+                pd.DataFrame(chip_rows),
+                hide_index=True,
+                use_container_width=True
+            )
+
+        else:
+
+            st.info(
+                "No chips used yet."
+            )
+
+    # =================================================
+    # AI SCOUT REPORT
     # =================================================
 
     st.markdown("---")
-    st.subheader("🔄 Latest Transfers")
 
-    if len(transfers):
-
-        transfer_rows = []
-
-        for transfer in transfers[-20:]:
-
-            transfer_rows.append({
-                "GW": transfer["event"],
-                "IN": players.get(
-                    transfer["element_in"],
-                    {}
-                ).get("web_name", "Unknown"),
-                "OUT": players.get(
-                    transfer["element_out"],
-                    {}
-                ).get("web_name", "Unknown"),
-                "Time": transfer["time"]
-            })
-
-        transfer_df = pd.DataFrame(
-            transfer_rows
-        ).sort_values(
-            "GW",
-            ascending=False
-        )
-
-        st.dataframe(
-            transfer_df,
-            use_container_width=True,
-            hide_index=True
-        )
-
-    else:
-
-        st.info(
-            "No transfer history available."
-        )
-
-    # =================================================
-    # AI SCOUTING REPORT
-    # =================================================
-
-    st.markdown("---")
     st.subheader("🤖 Scout Report")
 
-    chip_count = len(chips)
+    st.info(
+        f"""
+🏆 {manager_name} currently has {manager['summary_overall_points']} points.
 
-    total_transfers = len(transfers)
+📈 Overall rank: {manager['summary_overall_rank']:,}
 
-    report = f"""
-🏆 {selected_manager} currently has {manager['summary_overall_points']} points.
+💰 Squad value: £{manager['last_deadline_value']/10:.1f}m
 
-💰 Team value stands at £{manager['last_deadline_value']/10:.1f}m.
+🎲 Chips used: {len(manager.get('chips', []))}
 
-🎲 Chips used so far: {chip_count}.
+🔄 Transfers made: {len(transfers)}
 
-🔄 Recorded transfers: {total_transfers}.
-
-🧢 Current captain: {captain}.
-
-⚠️ Review their transfer history and captain selections carefully before making your own moves.
+⚔️ Use the formation view above to scout captain choices, team structure and potential differentials.
 """
-
-    st.info(report)
+    )
 
 except Exception as e:
 
     st.error(
-        f"Unable to load rival data: {e}"
+        f"Failed to load rival data: {e}"
     )
