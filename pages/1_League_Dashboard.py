@@ -871,7 +871,7 @@ try:
     for index, (_, podium_manager) in enumerate(
         league_df.head(3).iterrows()
     ):
-        with podium_columnsst.markdown(
+        podium_columns[index].markdown(
                 podium_html(
                     podium_manager,
                     index + 1,
