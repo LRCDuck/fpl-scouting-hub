@@ -3,125 +3,312 @@ import pandas as pd
 import requests
 import plotly.express as px
 
-st.set_page_config(layout="wide")
+# =====================================================
+# DEFAULT SETTINGS
+# =====================================================
 
-st.title("🏆 League Dashboard")
+DEFAULT_LEAGUE_ID = "1116047"
+DEFAULT_ENTRY_ID = "6074290"
+
+st.set_page_config(
+    page_title="League Dashboard",
+    layout="wide"
+)
+
+# =====================================================
+# SIDEBAR
+# =====================================================
+
+st.sidebar.header("⚙️ Settings")
 
 league_id = st.sidebar.text_input(
     "League ID",
-    value="1116047"
+    value=DEFAULT_LEAGUE_ID
 )
 
-your_name = st.sidebar.text_input(
-    "Your Name"
+entry_id = st.sidebar.text_input(
+    "Your Entry ID",
+    value=DEFAULT_ENTRY_ID
 )
 
-@st.cache_data(ttl=3600)
-def fetch_league_data(l_id):
+# =====================================================
+# HEADER
+# =====================================================
 
-    url = f"https://fantasy.premierleague.com/api/leagues-classic/{l_id}/standings/"
+st.title("🏆 League Dashboard")
 
-    r = requests.get(
+# =====================================================
+# REFRESH
+# =====================================================
+
+if st.button("🔄 Refresh Data"):
+    st.cache_data.clear()
+    st.rerun()
+
+# =====================================================
+# FUNCTIONS
+# =====================================================
+
+@st.cache_data(ttl=300)
+def get_league_data(league_id):
+
+    url = (
+        f"https://fantasy.premierleague.com/api/"
+        f"leagues-classic/{league_id}/standings/"
+    )
+
+    data = requests.get(
         url,
         headers={"User-Agent": "Mozilla/5.0"}
-    )
+    ).json()
 
-    data = r.json()
+    rows = []
 
-    league_name = data["league"]["name"]
+    for manager in data["standings"]["results"]:
 
-    managers = []
+        movement = 0
 
-    for m in data["standings"]["results"]:
+        if manager["last_rank"]:
+            movement = manager["last_rank"] - manager["rank"]
 
-        trend = "➖"
-
-        if m["rank_sort"] < m["last_rank"]:
-            trend = "🔺"
-        elif m["rank_sort"] > m["last_rank"]:
-            trend = "🔻"
-
-        managers.append({
-            "Entry ID": m["entry"],
-            "Rank": m["rank"],
-            "Trend": trend,
-            "Manager": m["player_name"],
-            "Team": m["entry_name"],
-            "GW Score": m["event_total"],
-            "Points": m["total"]
+        rows.append({
+            "Entry ID": manager["entry"],
+            "Rank": manager["rank"],
+            "Manager": manager["player_name"],
+            "Team": manager["entry_name"],
+            "GW Score": manager["event_total"],
+            "Points": manager["total"],
+            "Movement": movement
         })
 
-    return league_name, pd.DataFrame(managers)
+    return data["league"]["name"], pd.DataFrame(rows)
 
-league_name, df = fetch_league_data(league_id)
+@st.cache_data(ttl=300)
+def get_manager_data(entry_id):
 
-st.subheader(f"🏆 {league_name}")
-
-leader = df.iloc[0]
-
-avg_points = round(df["Points"].mean(), 1)
-
-col1,col2,col3,col4 = st.columns(4)
-
-with col1:
-    st.metric(
-        "Leader",
-        leader["Manager"]
+    url = (
+        f"https://fantasy.premierleague.com/api/"
+        f"entry/{entry_id}/"
     )
 
-with col2:
-    st.metric(
-        "Leader Points",
-        leader["Points"]
-    )
+    return requests.get(
+        url,
+        headers={"User-Agent": "Mozilla/5.0"}
+    ).json()
 
-with col3:
-    st.metric(
-        "League Avg",
-        avg_points
-    )
+# =====================================================
+# LOAD DATA
+# =====================================================
 
-with col4:
-    st.metric(
-        "Managers",
-        len(df)
-    )
+try:
 
-if your_name:
+    league_name, df = get_league_data(league_id)
 
-    your_team = df[
-        df["Manager"]
-        .str.contains(
-            your_name,
-            case=False,
-            na=False
+    my_team = df[df["Entry ID"] == int(entry_id)]
+
+    leader = df.iloc[0]
+
+    # =================================================
+    # HERO METRICS
+    # =================================================
+
+    st.subheader(f"🏆 {league_name}")
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            "League Leader",
+            leader["Manager"]
         )
+
+    with col2:
+        st.metric(
+            "Leader Points",
+            leader["Points"]
+        )
+
+    with col3:
+        st.metric(
+            "League Average",
+            round(df["Points"].mean(), 1)
+        )
+
+    with col4:
+        st.metric(
+            "Managers",
+            len(df)
+        )
+
+    # =================================================
+    # PODIUM
+    # =================================================
+
+    st.markdown("---")
+    st.subheader("🥇 League Podium")
+
+    podium = df.head(3)
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        st.metric(
+            "🥇 First",
+            podium.iloc[0]["Manager"],
+            podium.iloc[0]["Points"]
+        )
+
+    with c2:
+        if len(podium) > 1:
+            st.metric(
+                "🥈 Second",
+                podium.iloc[1]["Manager"],
+                podium.iloc[1]["Points"]
+            )
+
+    with c3:
+        if len(podium) > 2:
+            st.metric(
+                "🥉 Third",
+                podium.iloc[2]["Manager"],
+                podium.iloc[2]["Points"]
+            )
+
+    # =================================================
+    # PERSONAL DASHBOARD
+    # =================================================
+
+    st.markdown("---")
+    st.subheader("👤 Your Dashboard")
+
+    if not my_team.empty:
+
+        my_rank = my_team.iloc[0]["Rank"]
+        my_points = my_team.iloc[0]["Points"]
+
+        gap = leader["Points"] - my_points
+
+        team_data = get_manager_data(entry_id)
+
+        d1, d2, d3, d4 = st.columns(4)
+
+        with d1:
+            st.metric(
+                "Your Rank",
+                my_rank
+            )
+
+        with d2:
+            st.metric(
+                "Your Points",
+                my_points
+            )
+
+        with d3:
+            st.metric(
+                "Gap To Leader",
+                gap
+            )
+
+        with d4:
+            st.metric(
+                "Overall Rank",
+                f"{team_data['summary_overall_rank']:,}"
+            )
+
+    # =================================================
+    # ADD GAP COLUMN
+    # =================================================
+
+    df["Gap To Leader"] = (
+        leader["Points"] - df["Points"]
+    )
+
+    # =================================================
+    # LEAGUE TABLE
+    # =================================================
+
+    st.markdown("---")
+    st.subheader("📋 League Standings")
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # =================================================
+    # POINTS CHART
+    # =================================================
+
+    st.markdown("---")
+    st.subheader("📊 League Points Chart")
+
+    fig = px.bar(
+        df.sort_values("Points"),
+        x="Manager",
+        y="Points",
+        color="Points",
+        text="Points"
+    )
+
+    st.plotly_chart(
+        fig,
+        use_container_width=True
+    )
+
+    # =================================================
+    # BIGGEST MOVERS
+    # =================================================
+
+    st.markdown("---")
+    st.subheader("🚀 Biggest Movers")
+
+    biggest_riser = df.loc[
+        df["Movement"].idxmax()
     ]
 
-    if not your_team.empty:
+    biggest_faller = df.loc[
+        df["Movement"].idxmin()
+    ]
 
-        your_rank = your_team.iloc[0]["Rank"]
-        your_points = your_team.iloc[0]["Points"]
+    c1, c2 = st.columns(2)
 
+    with c1:
         st.success(
-            f"Rank #{your_rank} | {your_points} points | Gap to leader: {leader['Points'] - your_points}"
+            f"🚀 {biggest_riser['Manager']} "
+            f"({biggest_riser['Movement']} places)"
         )
 
-st.dataframe(
-    df,
-    use_container_width=True,
-    hide_index=True
-)
+    with c2:
+        st.error(
+            f"📉 {biggest_faller['Manager']} "
+            f"({biggest_faller['Movement']} places)"
+        )
 
-fig = px.bar(
-    df,
-    x="Manager",
-    y="Points",
-    color="Points",
-    title="League Points"
-)
+    # =================================================
+    # AI INSIGHTS
+    # =================================================
 
-st.plotly_chart(
-    fig,
-    use_container_width=True
-)
+    st.markdown("---")
+    st.subheader("🤖 AI League Report")
+
+    report = f"""
+🏆 {leader['Manager']} currently leads the league with {leader['Points']} points.
+
+📈 The biggest climber is {biggest_riser['Manager']}.
+
+📉 The biggest faller is {biggest_faller['Manager']}.
+
+🔥 Average league score is {round(df['Points'].mean(),1)}.
+
+🎯 There are currently {len(df)} managers in the league.
+"""
+
+    st.info(report)
+
+except Exception as e:
+
+    st.error(
+        f"Failed to load league data: {e}"
+    )
