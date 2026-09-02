@@ -8,13 +8,19 @@ st.set_page_config(
 st.title("⚽ FPL Scouting Hub")
 
 st.markdown("""
-### Navigation
+Welcome to your Fantasy Premier League analytics hub.
 
-Use the sidebar to access:
+### Available Pages
 
-- 🏆 League Dashboard
-- 🔍 Rival Viewer
-- ⚔️ Squad Comparison
-- 🔄 Transfer Intelligence
-- 🤖 AI Insights
+🏆 League Dashboard
+
+🔍 Rival Viewer
+
+⚔️ Squad Comparison
+
+🔄 Transfer Intelligence
+
+🤖 AI Insights
+
+Use the left sidebar to navigate.
 """)
