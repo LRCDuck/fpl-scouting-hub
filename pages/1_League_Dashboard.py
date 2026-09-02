@@ -6,6 +6,11 @@ import plotly.express as px
 import requests
 import streamlit as st
 
+
+# =========================================================
+# DEFAULT SETTINGS
+# =========================================================
+
 DEFAULT_LEAGUE_ID = "1116047"
 DEFAULT_ENTRY_ID = "6074290"
 
@@ -16,14 +21,20 @@ HEADERS = {
     "Accept": "application/json",
 }
 
+
+# =========================================================
+# PAGE CONFIGURATION
+# =========================================================
+
 st.set_page_config(
     page_title="League Dashboard",
     page_icon="🏆",
     layout="wide",
 )
 
+
 # =========================================================
-# STYLING
+# PAGE STYLING
 # =========================================================
 
 st.markdown(
@@ -56,7 +67,7 @@ st.markdown(
 
 .hero h1 {
     margin: 0;
-    color: white;
+    color: #ffffff;
     font-size: 2rem;
 }
 
@@ -74,7 +85,7 @@ st.markdown(
     border: 1px solid #89428f;
     border-radius: 13px;
     padding: 13px 17px;
-    color: white;
+    color: #ffffff;
     margin-bottom: 18px;
 }
 
@@ -119,7 +130,7 @@ st.markdown(
 }
 
 .pmanager {
-    color: white;
+    color: #ffffff;
     font-weight: 850;
     margin-top: 7px;
 }
@@ -133,7 +144,7 @@ st.markdown(
     display: inline-block;
     margin-top: 10px;
     background: rgba(255, 255, 255, 0.09);
-    color: white;
+    color: #ffffff;
     border-radius: 8px;
     padding: 5px 10px;
     font-weight: 800;
@@ -152,7 +163,7 @@ st.markdown(
 }
 
 .personal h3 {
-    color: white;
+    color: #ffffff;
     margin: 0 0 4px;
 }
 
@@ -161,20 +172,20 @@ st.markdown(
     margin: 0;
 }
 
-.card {
+.info-card {
     background: #161b22;
     border: 1px solid #30363d;
     border-radius: 13px;
     padding: 14px;
-    min-height: 110px;
+    min-height: 105px;
 }
 
-.card h4 {
+.info-card h4 {
     margin: 0 0 6px;
-    color: white;
+    color: #ffffff;
 }
 
-.card p {
+.info-card p {
     margin: 0;
     color: #aab3bf;
 }
@@ -200,7 +211,7 @@ st.markdown(
 }
 
 .award-name {
-    color: white;
+    color: #ffffff;
     font-weight: 850;
     margin-top: 6px;
 }
@@ -241,6 +252,7 @@ div.stButton > button {
     unsafe_allow_html=True,
 )
 
+
 # =========================================================
 # SIDEBAR
 # =========================================================
@@ -259,7 +271,7 @@ entry_id = st.sidebar.text_input(
 
 if st.sidebar.button(
     "🔄 Refresh League Data",
-    use_container_width=True,
+    width="stretch",
 ):
     st.cache_data.clear()
     st.rerun()
@@ -268,14 +280,16 @@ st.sidebar.caption(
     "League standings are cached for five minutes."
 )
 
+
 # =========================================================
 # API FUNCTIONS
 # =========================================================
 
-
 def api_get(endpoint, timeout=20):
+    url = f"{BASE_URL}/{endpoint.lstrip('/')}"
+
     response = requests.get(
-        f"{BASE_URL}/{endpoint.lstrip('/')}",
+        url,
         headers=HEADERS,
         timeout=timeout,
     )
@@ -285,19 +299,30 @@ def api_get(endpoint, timeout=20):
     return response.json()
 
 
-@st.cache_data(ttl=1800, show_spinner=False)
+@st.cache_data(
+    ttl=1800,
+    show_spinner=False,
+)
 def get_bootstrap():
-    return api_get("bootstrap-static/")
+    return api_get(
+        "bootstrap-static/"
+    )
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(
+    ttl=300,
+    show_spinner=False,
+)
 def get_manager(selected_entry_id):
     return api_get(
         f"entry/{selected_entry_id}/"
     )
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(
+    ttl=300,
+    show_spinner=False,
+)
 def get_league(selected_league_id):
     results = []
     league_info = {}
@@ -306,7 +331,8 @@ def get_league(selected_league_id):
     while True:
         data = api_get(
             f"leagues-classic/"
-            f"{selected_league_id}/standings/"
+            f"{selected_league_id}/"
+            f"standings/"
             f"?page_standings={page}"
         )
 
@@ -328,10 +354,12 @@ def get_league(selected_league_id):
             )
         )
 
-        if (
-            not standings.get("has_next", False)
-            or page >= 25
-        ):
+        has_next_page = standings.get(
+            "has_next",
+            False,
+        )
+
+        if not has_next_page or page >= 25:
             break
 
         page += 1
@@ -342,7 +370,6 @@ def get_league(selected_league_id):
 # =========================================================
 # HELPER FUNCTIONS
 # =========================================================
-
 
 def safe_int(value, fallback=0):
     try:
@@ -369,15 +396,6 @@ def ordinal(number):
     return f"{number}{suffix}"
 
 
-def format_rank(value):
-    rank = safe_int(value)
-
-    if rank > 0:
-        return f"{rank:,}"
-
-    return "Unavailable"
-
-
 def movement_text(value):
     value = safe_int(value)
 
@@ -388,6 +406,15 @@ def movement_text(value):
         return f"Down {abs(value)}"
 
     return "No change"
+
+
+def format_rank(value):
+    rank = safe_int(value)
+
+    if rank > 0:
+        return f"{rank:,}"
+
+    return "Unavailable"
 
 
 def format_deadline(value):
@@ -497,15 +524,19 @@ def make_dataframe(results):
     if not rows:
         return pd.DataFrame()
 
+    dataframe = pd.DataFrame(
+        rows
+    )
+
     return (
-        pd.DataFrame(rows)
+        dataframe
         .sort_values("Rank")
         .reset_index(drop=True)
     )
 
 
 def podium_html(row, position):
-    styles = {
+    podium_styles = {
         1: (
             "🥇",
             "FIRST PLACE",
@@ -524,35 +555,79 @@ def podium_html(row, position):
     }
 
     medal, label, colour = (
-        styles[position]
+        podium_styles[position]
     )
 
-    return f"""
-<div
-    class="podium"
-    style="--medal:{colour}"
->
-    <div class="medal">
-        {medal}
-    </div>
+    manager_name = html.escape(
+        str(row["Manager"])
+    )
 
-    <div class="place">
-        {label}
-    </div>
+    team_name = html.escape(
+        str(row["Team"])
+    )
 
-    <div class="pmanager">
-        {html.escape(str(row["Manager"]))}
-    </div>
+    points = safe_int(
+        row["Total Points"]
+    )
 
-    <div class="pteam">
-        {html.escape(str(row["Team"]))}
-    </div>
+    return (
+        f'<div class="podium" '
+        f'style="--medal:{colour};">'
+        f'<div class="medal">{medal}</div>'
+        f'<div class="place">{label}</div>'
+        f'<div class="pmanager">'
+        f'{manager_name}'
+        f'</div>'
+        f'<div class="pteam">'
+        f'{team_name}'
+        f'</div>'
+        f'<div class="ppoints">'
+        f'{points} points'
+        f'</div>'
+        f'</div>'
+    )
 
-    <div class="ppoints">
-        {safe_int(row["Total Points"])} points
-    </div>
-</div>
-"""
+
+def build_chart(
+    dataframe,
+    value_column,
+    colour_scale,
+    hover_columns,
+):
+    figure = px.bar(
+        dataframe.sort_values(
+            value_column
+        ),
+        x=value_column,
+        y="Display Name",
+        orientation="h",
+        color=value_column,
+        text=value_column,
+        color_continuous_scale=colour_scale,
+        hover_data=hover_columns,
+    )
+
+    figure.update_layout(
+        height=max(
+            430,
+            len(dataframe) * 35,
+        ),
+        coloraxis_showscale=False,
+        yaxis_title="",
+        xaxis_title=value_column,
+        margin={
+            "l": 10,
+            "r": 20,
+            "t": 30,
+            "b": 30,
+        },
+    )
+
+    figure.update_traces(
+        textposition="outside"
+    )
+
+    return figure
 
 
 # =========================================================
@@ -649,48 +724,60 @@ try:
         )
 
     # =====================================================
-    # HEADER
+    # HERO BANNER
     # =====================================================
 
-    st.markdown(
-        f"""
-<div class="hero">
-    <h1>
-        🏆 {html.escape(league_name)}
-    </h1>
+    escaped_league_name = html.escape(
+        str(league_name)
+    )
 
-    <p>
-        Live standings, rank movement,
-        gameweek performance and
-        mini-league insights.
-    </p>
-</div>
-""",
+    hero_html = (
+        f'<div class="hero">'
+        f'<h1>🏆 {escaped_league_name}</h1>'
+        f'<p>'
+        f'Live standings, rank movement, '
+        f'gameweek performance and '
+        f'mini-league insights.'
+        f'</p>'
+        f'</div>'
+    )
+
+    st.markdown(
+        hero_html,
         unsafe_allow_html=True,
     )
+
+    # =====================================================
+    # DEADLINE BANNER
+    # =====================================================
 
     if next_event:
         deadline = next_event.get(
             "deadline_time"
         )
 
-        event_name = next_event.get(
-            "name",
-            "Next Gameweek",
+        event_name = html.escape(
+            str(
+                next_event.get(
+                    "name",
+                    "Next Gameweek",
+                )
+            )
+        )
+
+        deadline_html = (
+            f'<div class="deadline">'
+            f'⏰ <strong>'
+            f'{event_name} deadline:'
+            f'</strong> '
+            f'{html.escape(format_deadline(deadline))}'
+            f' · '
+            f'{html.escape(countdown(deadline))}'
+            f'</div>'
         )
 
         st.markdown(
-            f"""
-<div class="deadline">
-    ⏰ <strong>
-        {html.escape(event_name)} deadline:
-    </strong>
-
-    {html.escape(format_deadline(deadline))}
-    ·
-    {html.escape(countdown(deadline))}
-</div>
-""",
+            deadline_html,
             unsafe_allow_html=True,
         )
 
@@ -705,14 +792,14 @@ try:
         1,
     )
 
-    gw_average = round(
+    gameweek_average = round(
         league_df[
             "GW Score"
         ].mean(),
         1,
     )
 
-    spread = (
+    points_spread = (
         safe_int(
             league_df.iloc[0][
                 "Total Points"
@@ -761,12 +848,12 @@ try:
 
     overview_5.metric(
         "Average GW Score",
-        f"{gw_average} pts",
+        f"{gameweek_average} pts",
     )
 
     overview_6.metric(
         "First-to-Last Spread",
-        f"{spread} pts",
+        f"{points_spread} pts",
     )
 
     # =====================================================
@@ -784,8 +871,7 @@ try:
     for index, (_, podium_manager) in enumerate(
         league_df.head(3).iterrows()
     ):
-        with podium_columns[index]:
-            st.markdown(
+        with podium_columnsst.markdown(
                 podium_html(
                     podium_manager,
                     index + 1,
@@ -805,8 +891,9 @@ try:
 
     my_rank = None
     gap_to_leader = None
-    manager_above = None
     gap_to_above = None
+    manager_above = None
+    manager_below = None
 
     if my_row is not None:
         my_rank = safe_int(
@@ -823,9 +910,7 @@ try:
 
         gap_to_leader = (
             safe_int(
-                leader[
-                    "Total Points"
-                ]
+                leader["Total Points"]
             )
             - my_points
         )
@@ -838,23 +923,17 @@ try:
             league_df["Rank"] > my_rank
         ]
 
-        if above_rows.empty:
-            manager_above = None
-        else:
+        if not above_rows.empty:
             manager_above = (
                 above_rows.iloc[-1]
             )
 
-        if below_rows.empty:
-            manager_below = None
-        else:
+        if not below_rows.empty:
             manager_below = (
                 below_rows.iloc[0]
             )
 
-        if manager_above is None:
-            gap_to_above = 0
-        else:
+        if manager_above is not None:
             gap_to_above = (
                 safe_int(
                     manager_above[
@@ -863,10 +942,10 @@ try:
                 )
                 - my_points
             )
-
-        if manager_below is None:
-            lead_over_below = 0
         else:
+            gap_to_above = 0
+
+        if manager_below is not None:
             lead_over_below = (
                 my_points
                 - safe_int(
@@ -875,22 +954,30 @@ try:
                     ]
                 )
             )
+        else:
+            lead_over_below = 0
+
+        personal_team = html.escape(
+            str(my_row["Team"])
+        )
+
+        personal_manager = html.escape(
+            str(my_row["Manager"]).title()
+        )
+
+        personal_html = (
+            f'<div class="personal">'
+            f'<h3>{personal_team}</h3>'
+            f'<p>'
+            f'Managed by {personal_manager} · '
+            f'Currently {ordinal(my_rank)} in '
+            f'{escaped_league_name}'
+            f'</p>'
+            f'</div>'
+        )
 
         st.markdown(
-            f"""
-<div class="personal">
-    <h3>
-        {html.escape(str(my_row["Team"]))}
-    </h3>
-
-    <p>
-        Managed by
-        {html.escape(str(my_row["Manager"]))}
-        · Currently {ordinal(my_rank)}
-        in {html.escape(league_name)}
-    </p>
-</div>
-""",
+            personal_html,
             unsafe_allow_html=True,
         )
 
@@ -1003,7 +1090,7 @@ try:
         )
 
     # =====================================================
-    # STANDINGS TABLE
+    # LEAGUE TABLE
     # =====================================================
 
     st.markdown("---")
@@ -1019,7 +1106,7 @@ try:
     )
 
     with control_1:
-        search = st.text_input(
+        search_term = st.text_input(
             "Search manager or team",
             placeholder="Enter a name...",
         )
@@ -1060,23 +1147,25 @@ try:
         )
     )
 
-    if search:
-        search_mask = (
+    if search_term:
+        manager_match = (
             table["Manager"].str.contains(
-                search,
+                search_term,
                 case=False,
                 na=False,
             )
-            |
+        )
+
+        team_match = (
             table["Team"].str.contains(
-                search,
+                search_term,
                 case=False,
                 na=False,
             )
         )
 
         table = table[
-            search_mask
+            manager_match | team_match
         ]
 
     if sort_by == "Gameweek Score":
@@ -1121,21 +1210,53 @@ try:
             ]
         )
 
+    displayed_table = table[
+        [
+            "Rank",
+            "Trend",
+            "Manager",
+            "Team",
+            "GW Score",
+            "Total Points",
+            "Gap to Leader",
+            "Rank Movement",
+        ]
+    ]
+
     st.dataframe(
-        table[
-            [
-                "Rank",
-                "Trend",
-                "Manager",
-                "Team",
-                "GW Score",
-                "Total Points",
-                "Gap to Leader",
-                "Rank Movement",
-            ]
-        ],
+        displayed_table,
         hide_index=True,
-        use_container_width=True,
+        width="stretch",
+        column_config={
+            "Rank": st.column_config.NumberColumn(
+                "Rank",
+                format="%d",
+            ),
+            "Trend": st.column_config.TextColumn(
+                "Trend",
+            ),
+            "Manager": st.column_config.TextColumn(
+                "Manager",
+            ),
+            "Team": st.column_config.TextColumn(
+                "Team",
+            ),
+            "GW Score": st.column_config.NumberColumn(
+                "GW Score",
+                format="%d pts",
+            ),
+            "Total Points": st.column_config.NumberColumn(
+                "Total Points",
+                format="%d pts",
+            ),
+            "Gap to Leader": st.column_config.NumberColumn(
+                "Gap to Leader",
+                format="%d pts",
+            ),
+            "Rank Movement": st.column_config.TextColumn(
+                "Rank Movement",
+            ),
+        },
     )
 
     # =====================================================
@@ -1163,7 +1284,7 @@ try:
         - chart_df["Total Points"]
     )
 
-    chart_tab_1, chart_tab_2, chart_tab_3 = (
+    total_tab, gameweek_tab, gap_tab = (
         st.tabs(
             [
                 "Total Points",
@@ -1173,111 +1294,65 @@ try:
         )
     )
 
-    with chart_tab_1:
-        total_chart = px.bar(
-            chart_df.sort_values(
-                "Total Points"
-            ),
-            x="Total Points",
-            y="Display Name",
-            orientation="h",
-            color="Total Points",
-            text="Total Points",
-            color_continuous_scale=[
+    with total_tab:
+        total_chart = build_chart(
+            dataframe=chart_df,
+            value_column="Total Points",
+            colour_scale=[
                 "#37003c",
                 "#00ff87",
             ],
-            hover_data=[
+            hover_columns=[
                 "Team",
                 "GW Score",
             ],
         )
 
-        total_chart.update_layout(
-            height=max(
-                430,
-                len(chart_df) * 35,
-            ),
-            coloraxis_showscale=False,
-            yaxis_title="",
-        )
-
         st.plotly_chart(
             total_chart,
-            use_container_width=True,
+            width="stretch",
         )
 
-    with chart_tab_2:
-        gameweek_chart = px.bar(
-            chart_df.sort_values(
-                "GW Score"
-            ),
-            x="GW Score",
-            y="Display Name",
-            orientation="h",
-            color="GW Score",
-            text="GW Score",
-            color_continuous_scale=[
+    with gameweek_tab:
+        gameweek_chart = build_chart(
+            dataframe=chart_df,
+            value_column="GW Score",
+            colour_scale=[
                 "#37003c",
                 "#00ff87",
             ],
-            hover_data=[
+            hover_columns=[
                 "Team",
                 "Total Points",
             ],
-        )
-
-        gameweek_chart.update_layout(
-            height=max(
-                430,
-                len(chart_df) * 35,
-            ),
-            coloraxis_showscale=False,
-            yaxis_title="",
         )
 
         st.plotly_chart(
             gameweek_chart,
-            use_container_width=True,
+            width="stretch",
         )
 
-    with chart_tab_3:
-        gap_chart = px.bar(
-            chart_df.sort_values(
-                "Gap to Leader",
-                ascending=False,
-            ),
-            x="Gap to Leader",
-            y="Display Name",
-            orientation="h",
-            color="Gap to Leader",
-            text="Gap to Leader",
-            color_continuous_scale=[
+    with gap_tab:
+        gap_chart = build_chart(
+            dataframe=chart_df,
+            value_column="Gap to Leader",
+            colour_scale=[
                 "#00ff87",
                 "#ff6078",
             ],
-            hover_data=[
+            hover_columns=[
                 "Team",
                 "Total Points",
             ],
         )
 
-        gap_chart.update_layout(
-            height=max(
-                430,
-                len(chart_df) * 35,
-            ),
-            coloraxis_showscale=False,
-            yaxis_title="",
-        )
-
         st.plotly_chart(
             gap_chart,
-            use_container_width=True,
+            width="stretch",
         )
 
     # =====================================================
-    # MOVERS
+    # BIGGEST MOVERS
     # =====================================================
 
     positive_movers = league_df[
@@ -1320,11 +1395,23 @@ try:
 
     with mover_1:
         if biggest_riser is not None:
+            riser_name = html.escape(
+                str(
+                    biggest_riser[
+                        "Manager"
+                    ]
+                )
+            )
+
+            riser_movement = safe_int(
+                biggest_riser[
+                    "Movement"
+                ]
+            )
+
             riser_text = (
-                f"<strong>"
-                f"{html.escape(str(biggest_riser['Manager']))}"
-                f"</strong> climbed "
-                f"{safe_int(biggest_riser['Movement'])} "
+                f"<strong>{riser_name}</strong> "
+                f"climbed {riser_movement} "
                 f"place(s)."
             )
         else:
@@ -1333,23 +1420,39 @@ try:
                 "this gameweek."
             )
 
+        riser_html = (
+            f'<div class="info-card">'
+            f'<h4>🚀 Biggest Riser</h4>'
+            f'<p>{riser_text}</p>'
+            f'</div>'
+        )
+
         st.markdown(
-            f"""
-<div class="card">
-    <h4>🚀 Biggest Riser</h4>
-    <p>{riser_text}</p>
-</div>
-""",
+            riser_html,
             unsafe_allow_html=True,
         )
 
     with mover_2:
         if biggest_faller is not None:
+            faller_name = html.escape(
+                str(
+                    biggest_faller[
+                        "Manager"
+                    ]
+                )
+            )
+
+            faller_movement = abs(
+                safe_int(
+                    biggest_faller[
+                        "Movement"
+                    ]
+                )
+            )
+
             faller_text = (
-                f"<strong>"
-                f"{html.escape(str(biggest_faller['Manager']))}"
-                f"</strong> dropped "
-                f"{abs(safe_int(biggest_faller['Movement']))} "
+                f"<strong>{faller_name}</strong> "
+                f"dropped {faller_movement} "
                 f"place(s)."
             )
         else:
@@ -1358,43 +1461,49 @@ try:
                 "this gameweek."
             )
 
+        faller_html = (
+            f'<div class="info-card">'
+            f'<h4>📉 Biggest Faller</h4>'
+            f'<p>{faller_text}</p>'
+            f'</div>'
+        )
+
         st.markdown(
-            f"""
-<div class="card">
-    <h4>📉 Biggest Faller</h4>
-    <p>{faller_text}</p>
-</div>
-""",
+            faller_html,
             unsafe_allow_html=True,
         )
 
     # =====================================================
-    # AWARDS
+    # LEAGUE AWARDS
     # =====================================================
 
-    best_gw = league_df.loc[
+    best_gameweek = league_df.loc[
         league_df[
             "GW Score"
         ].idxmax()
     ]
 
-    worst_gw = league_df.loc[
+    worst_gameweek = league_df.loc[
         league_df[
             "GW Score"
         ].idxmin()
     ]
 
     if len(league_df) > 1:
-        challenger = league_df.iloc[1]
+        closest_challenger = (
+            league_df.iloc[1]
+        )
     else:
-        challenger = leader
+        closest_challenger = leader
 
     second_place_gap = (
         safe_int(
             leader["Total Points"]
         )
         - safe_int(
-            challenger["Total Points"]
+            closest_challenger[
+                "Total Points"
+            ]
         )
     )
 
@@ -1417,16 +1526,16 @@ try:
         (
             "🔥",
             "KING OF THE WEEK",
-            best_gw["Manager"],
+            best_gameweek["Manager"],
             (
-                f"{safe_int(best_gw['GW Score'])} "
+                f"{safe_int(best_gameweek['GW Score'])} "
                 f"GW points"
             ),
         ),
         (
             "⚔️",
             "CLOSEST CHALLENGER",
-            challenger["Manager"],
+            closest_challenger["Manager"],
             (
                 f"{second_place_gap} "
                 f"points behind"
@@ -1435,9 +1544,9 @@ try:
         (
             "🧊",
             "TOUGH GAMEWEEK",
-            worst_gw["Manager"],
+            worst_gameweek["Manager"],
             (
-                f"{safe_int(worst_gw['GW Score'])} "
+                f"{safe_int(worst_gameweek['GW Score'])} "
                 f"GW points"
             ),
         ),
@@ -1451,29 +1560,101 @@ try:
     ):
         icon, title, name, detail = award
 
+        safe_award_name = html.escape(
+            str(name).title()
+        )
+
+        award_html = (
+            f'<div class="award">'
+            f'<div class="award-icon">'
+            f'{icon}'
+            f'</div>'
+            f'<div class="award-title">'
+            f'{title}'
+            f'</div>'
+            f'<div class="award-name">'
+            f'{safe_award_name}'
+            f'</div>'
+            f'<div class="award-detail">'
+            f'{detail}'
+            f'</div>'
+            f'</div>'
+        )
+
         with column:
             st.markdown(
-                f"""
-<div class="award">
-    <div class="award-icon">
-        {icon}
-    </div>
-
-    <div class="award-title">
-        {title}
-    </div>
-
-    <div class="award-name">
-        {html.escape(str(name))}
-    </div>
-
-    <div class="award-detail">
-        {detail}
-    </div>
-</div>
-""",
+                award_html,
                 unsafe_allow_html=True,
             )
+
+    # =====================================================
+    # TOP GAMEWEEK PERFORMERS
+    # =====================================================
+
+    st.markdown("---")
+
+    st.subheader(
+        "🔥 Top Gameweek Performers"
+    )
+
+    top_gameweek = (
+        league_df
+        .sort_values(
+            [
+                "GW Score",
+                "Total Points",
+            ],
+            ascending=[
+                False,
+                False,
+            ],
+        )
+        .head(5)
+        .copy()
+    )
+
+    top_gameweek.insert(
+        0,
+        "GW Position",
+        range(
+            1,
+            len(top_gameweek) + 1,
+        ),
+    )
+
+    st.dataframe(
+        top_gameweek[
+            [
+                "GW Position",
+                "Manager",
+                "Team",
+                "GW Score",
+                "Rank",
+            ]
+        ],
+        hide_index=True,
+        width="stretch",
+        column_config={
+            "GW Position": (
+                st.column_config.NumberColumn(
+                    "GW Position",
+                    format="%d",
+                )
+            ),
+            "GW Score": (
+                st.column_config.NumberColumn(
+                    "GW Score",
+                    format="%d pts",
+                )
+            ),
+            "Rank": (
+                st.column_config.NumberColumn(
+                    "League Rank",
+                    format="%d",
+                )
+            ),
+        },
+    )
 
     # =====================================================
     # SCOUTING REPORT
@@ -1486,9 +1667,11 @@ try:
     )
 
     if current_event:
-        gameweek_name = current_event.get(
-            "name",
-            "the current gameweek",
+        gameweek_name = (
+            current_event.get(
+                "name",
+                "the current gameweek",
+            )
         )
     else:
         gameweek_name = (
@@ -1506,37 +1689,49 @@ try:
             f"**{second_place_gap} points**."
         ),
         (
-            f"🔥 **{best_gw['Manager']}** has the "
+            f"🔥 **{best_gameweek['Manager']}** has the "
             f"highest score in {gameweek_name} with "
-            f"**{safe_int(best_gw['GW Score'])} points**."
+            f"**{safe_int(best_gameweek['GW Score'])} "
+            f"points**."
         ),
         (
             f"📊 The total-points average is "
             f"**{league_average}**, while the current "
-            f"GW average is **{gw_average}**."
+            f"gameweek average is "
+            f"**{gameweek_average}**."
         ),
     ]
 
     if biggest_riser is not None:
         report_lines.append(
-            f"🚀 **{biggest_riser['Manager']}** is "
-            f"the biggest climber, gaining "
+            f"🚀 **{biggest_riser['Manager']}** is the "
+            f"biggest climber, gaining "
             f"**{safe_int(biggest_riser['Movement'])} "
+            f"place(s)**."
+        )
+
+    if biggest_faller is not None:
+        report_lines.append(
+            f"📉 **{biggest_faller['Manager']}** has "
+            f"dropped "
+            f"**{abs(safe_int(biggest_faller['Movement']))} "
             f"place(s)**."
         )
 
     if my_row is not None:
         report_lines.append(
-            f"🎯 Your team is **{ordinal(my_rank)}**, "
-            f"**{gap_to_leader} points** behind "
-            f"the leader."
+            f"🎯 Your team is currently "
+            f"**{ordinal(my_rank)}**, "
+            f"**{gap_to_leader} points** "
+            f"behind the leader."
         )
 
         if manager_above is not None:
             report_lines.append(
                 f"👀 Your next target is "
                 f"**{manager_above['Manager']}**, "
-                f"**{gap_to_above} points** ahead."
+                f"who is **{gap_to_above} points** "
+                f"ahead."
             )
 
     st.info(
@@ -1545,12 +1740,18 @@ try:
         )
     )
 
+    st.caption(
+        "League standings and gameweek results are "
+        "retrieved from the Fantasy Premier League data feed."
+    )
+
+
 # =========================================================
 # ERROR HANDLING
 # =========================================================
 
 except requests.exceptions.HTTPError as error:
-    status = getattr(
+    status_code = getattr(
         error.response,
         "status_code",
         "Unknown",
@@ -1558,20 +1759,39 @@ except requests.exceptions.HTTPError as error:
 
     st.error(
         f"The FPL service returned status code "
-        f"{status}. Check the IDs and refresh."
+        f"{status_code}. Check the League ID and "
+        f"Entry ID, then refresh the page."
     )
 
 except requests.exceptions.Timeout:
     st.error(
         "The FPL service took too long to respond. "
-        "Refresh and try again."
+        "Please refresh the page and try again."
     )
 
 except requests.exceptions.ConnectionError:
     st.error(
         "The app could not connect to the FPL service. "
-        "Try again shortly."
+        "Please try again shortly."
     )
+
+except (
+    KeyError,
+    IndexError,
+    TypeError,
+    ValueError,
+) as error:
+    st.error(
+        "Some league data was missing or had "
+        "an unexpected format."
+    )
+
+    with st.expander(
+        "Technical error details"
+    ):
+        st.code(
+            str(error)
+        )
 
 except Exception as error:
     st.error(
