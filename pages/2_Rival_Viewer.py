@@ -36,11 +36,11 @@ st.markdown("""
 
 .player-card{
     border-radius:12px;
-    padding:12px;
+    padding:4px;
     text-align:center;
     font-weight:bold;
     color:white;
-    min-height:100px;
+    min-height:50px;
     margin-bottom:10px;
     box-shadow:0px 4px 8px rgba(0,0,0,0.3);
 }
@@ -181,21 +181,29 @@ def render_card(player, pdata, display_mode):
         value = f"£{pdata['now_cost']/10:.1f}m"
 
     return f"""
-    <div class="{css_class}"
-         style="background:{team_colour};">
+        <div style="
+        background:{team_colour};
+        border:{border};
+        border-radius:12px;
+        padding:6px;
+        text-align:center;
+        font-weight:bold;
+        color:white;
+        font-size:13px;
+        min-height:55px;
+        box-shadow:0 2px 6px rgba(0,0,0,0.3);
+        ">
 
-        <div>{badges}</div>
+<div>{badges}</div>
 
-        <div>
-            {pdata['web_name']}
-        </div>
+<div>{pdata['web_name']}</div>
 
-        <div style="margin-top:8px;font-size:14px;">
-            {value}
-        </div>
+<div style="font-size:11px;">
+{value}
+</div>
 
-    </div>
-    """
+</div>
+"""
 
 
 # ==========================================================
@@ -327,10 +335,10 @@ try:
 
     with tab1:
 
-        st.markdown(
-            "<div class='pitch'>",
-            unsafe_allow_html=True
-        )
+        section[data-testid="stHorizontalBlock"]{
+            background:#0ca54a;
+            border-radius:15px;
+        }
 
         st.markdown("### 🥅 Goalkeeper")
 
