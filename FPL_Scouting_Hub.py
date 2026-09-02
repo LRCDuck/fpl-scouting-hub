@@ -665,7 +665,7 @@ try:
         )
 
         st.page_link(
-            "pages/5_AI_Insights.py",
+            "pages/7_AI_Insights.py",
             label="Open AI Insights",
             icon="🤖",
             use_container_width=True,
