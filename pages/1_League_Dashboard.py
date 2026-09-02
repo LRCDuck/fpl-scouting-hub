@@ -802,7 +802,8 @@ try:
     for index, (_, podium_manager) in enumerate(
         podium.iterrows()
     ):
-        with podium_columnsst.markdown(
+        with podium_columns[index]:
+            st.markdown(
                 podium_card(
                     podium_manager,
                     index + 1,
